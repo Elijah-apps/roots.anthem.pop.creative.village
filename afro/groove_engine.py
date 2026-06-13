@@ -38,22 +38,90 @@ class GrooveEngine:
 
     def get_shaker_pattern(self, bars, bpm):
         complexity = self.config.get("percussion_complexity", 0.5)
-        tracker.log("GrooveEngine", "Rhythmic DNA", f"Generating shaker DNA (Complexity: {complexity:.2f})")
+        style = self.config.get("shaker_style", "classic_shuffle")
+        tracker.log("GrooveEngine", "Rhythmic DNA", f"Generating shaker DNA (Style: {style}, Complexity: {complexity:.2f})")
         
         sec_per_beat = 60.0 / bpm
         step_dur = sec_per_beat / 4.0
         pattern = []
         
-        for step in range(bars * 16):
-            if complexity < 0.3 and step % 2 == 1: continue
-            is_accent = (step % 3 == 0)
-            base_vel = 85 if is_accent else 45
-            bar_pos = (step % 64) / 64.0
-            swell = 1.0 + (0.2 * np.sin(bar_pos * np.pi))
-            t = step * step_dur
-            v = int(base_vel * swell)
-            pattern.append({"time": t, "velocity": v, "pitch": 42})
+        # Classic Amapiano Shuffle accents: steps 0, 3, 6, 8, 11, 14
+        amapiano_accents = {0, 3, 6, 8, 11, 14}
+        
+        for bar in range(bars):
+            for step_in_bar in range(16):
+                step = bar * 16 + step_in_bar
+                t = step * step_dur
+                
+                # Complexity gating
+                if complexity < 0.35 and step_in_bar % 2 == 1:
+                    continue
+                    
+                is_accent = False
+                time_offset = 0.0
+                
+                if style == "classic_shuffle":
+                    is_accent = step_in_bar in amapiano_accents
+                elif style == "triplet_bounce":
+                    is_accent = (step_in_bar % 3 == 0)
+                    # Triplet shuffle offset
+                    if step_in_bar % 3 == 2:
+                        time_offset = step_dur * 0.08
+                else: # straight_groove
+                    is_accent = (step_in_bar % 4 == 0) or (step_in_bar % 4 == 2)
+                
+                base_vel = 90 if is_accent else 40
+                bar_pos = (step % 64) / 64.0
+                swell = 1.0 + (0.15 * np.sin(bar_pos * np.pi))
+                v = int(base_vel * swell)
+                v = int(v * random.uniform(0.9, 1.1))
+                
+                pattern.append({
+                    "time": t + time_offset,
+                    "velocity": min(127, max(1, v)),
+                    "pitch": 82 # GM Shaker
+                })
         return pattern
+
+    def get_amapiano_perc_pattern(self, bars, bpm):
+        complexity = self.config.get("percussion_complexity", 0.5)
+        sec_per_beat = 60.0 / bpm
+        step_dur = sec_per_beat / 4.0
+        pattern = []
+        
+        # Authentic Conga / Rimshot polyrhythmic syncopations
+        for bar in range(bars):
+            bar_start = bar * 16 * step_dur
+            
+            # 1. Rimshots / cross-sticks
+            rim_steps = [3, 7, 11, 14]
+            if complexity > 0.6:
+                rim_steps += [5, 9]
+            for step in rim_steps:
+                v = int(85 * random.uniform(0.85, 1.1))
+                t = bar_start + step * step_dur
+                pattern.append({"time": t, "velocity": v, "pitch": 37})
+                
+            # 2. Congas: conversational hand drums (Low Conga 64, High Conga 63)
+            conga_steps = [(2, 64), (6, 63), (10, 64), (13, 63)]
+            if complexity > 0.5:
+                conga_steps += [(8, 64), (15, 63)]
+            for step, pitch in conga_steps:
+                v = int(75 * random.uniform(0.8, 1.15))
+                t = bar_start + step * step_dur
+                pattern.append({"time": t, "velocity": v, "pitch": pitch})
+                
+            # 3. Woodblock (56) accents
+            wb_steps = [4, 12]
+            if complexity > 0.7:
+                wb_steps += [0, 8]
+            for step in wb_steps:
+                v = int(80 * random.uniform(0.85, 1.05))
+                t = bar_start + step * step_dur
+                pattern.append({"time": t, "velocity": v, "pitch": 56})
+                
+        return pattern
+
 
     def apply_log_drum_dynamics(self, notes):
         intensity = self.config.get("humanization_intensity", 0.5)

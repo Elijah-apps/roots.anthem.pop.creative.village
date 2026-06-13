@@ -29,11 +29,16 @@ NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
 # GM drum map
 KICK  = 36
+RIMSHOT = 37
 SNARE = 38
 HIHAT_CLOSED = 42
 HIHAT_OPEN   = 46
+WOODBLOCK = 56
+CONGA_HIGH = 63
+CONGA_LOW = 64
 PERC  = 75
 SHAKER = 82 # GM Shaker
+
 
 def note_name_to_midi(name: str, default_octave: int = 4) -> int:
     name = name.strip().replace("b", "#")
@@ -117,29 +122,81 @@ class DrumAgent:
         self.drums = drum_inst
         self.shaker = shaker_inst
     def perform(self, scene: dict, drum_cfg: dict, state: AgentState, swing: float = 0.5, next_scene: dict = None):
-        if scene["arrangement"].get("drums", "silent") == "silent": return
+        role = scene["arrangement"].get("drums", "silent")
+        if role == "silent": return
         bars = scene["bars"]
-        # Shakers
+        energy = scene.get("energy_percent", 50)
+        
+        # 1. Shakers (Style-driven from GrooveEngine)
         for s in state.groove.get_shaker_pattern(bars, state.bpm):
-            self.shaker.notes.append(pretty_midi.Note(s["velocity"], s["pitch"], state.cursor_sec + s["time"], state.cursor_sec + s["time"] + 0.05))
-        # Patterns
+            self.shaker.notes.append(pretty_midi.Note(
+                velocity=s["velocity"],
+                pitch=s["pitch"],
+                start=state.cursor_sec + s["time"],
+                end=state.cursor_sec + s["time"] + 0.05
+            ))
+            
+        # 2. Main Drum & Hihat Patterns
         kick_p = drum_cfg.get("kick_pattern", [0]*16)
         snare_p = drum_cfg.get("snare_pattern", [0]*16)
         perc_p = drum_cfg.get("perc_pattern", [0]*16)
+        
         for bar in range(bars):
             bar_s = state.cursor_sec + (bar * 4 * state.sec_per_beat)
             for step in range(16):
-                beat_off = step * 0.25 if step % 2 == 0 else (step-1)*0.25 + (0.5 * swing)
+                # Apply swing to off-beats
+                beat_off = step * 0.25 if step % 2 == 0 else (step - 1) * 0.25 + (0.5 * swing)
                 t = bar_s + beat_off * state.sec_per_beat
-                if kick_p[step]: self.drums.notes.append(pretty_midi.Note(110, KICK, t, t+0.05))
-                if scene["energy_percent"] > 30:
-                    if snare_p[step]: self.drums.notes.append(pretty_midi.Note(100, SNARE, t, t+0.05))
-                    if perc_p[step]: self.drums.notes.append(pretty_midi.Note(90, PERC, t, t+0.05))
-        # Fills
+                
+                # Kick
+                if kick_p[step]:
+                    self.drums.notes.append(pretty_midi.Note(110, KICK, t, t + 0.05))
+                    
+                # Active elements (energy based)
+                if energy > 30:
+                    if snare_p[step]:
+                        self.drums.notes.append(pretty_midi.Note(100, SNARE, t, t + 0.05))
+                    if perc_p[step]:
+                        self.drums.notes.append(pretty_midi.Note(90, PERC, t, t + 0.05))
+                        
+                # Dynamic Hi-hat interaction (Classic House off-beat open hat)
+                if energy > 40:
+                    if step in [4, 12]: # Off-beats (beat 2 and 4 off-beat)
+                        self.drums.notes.append(pretty_midi.Note(82, HIHAT_OPEN, t, t + 0.15 * state.sec_per_beat))
+                    elif step % 2 == 0 and not kick_p[step] and random.random() > 0.4:
+                        self.drums.notes.append(pretty_midi.Note(65, HIHAT_CLOSED, t, t + 0.05))
+                        
+                # Dynamic Triplet Rimshot Rolls in high energy parts
+                if energy > 70 and role == "full":
+                    # Play rolls on the last beat (steps 12-15) of every second bar
+                    if (bar % 2 == 1) and step in [12, 13, 14, 15]:
+                        v_roll = int(80 + (step - 12) * 12)
+                        t_double = t + 0.12 * state.sec_per_beat
+                        # Double hit roll
+                        self.drums.notes.append(pretty_midi.Note(v_roll, RIMSHOT, t, t + 0.04))
+                        self.drums.notes.append(pretty_midi.Note(max(1, v_roll - 20), RIMSHOT, t_double, t_double + 0.04))
+                        
+        # 3. Conversational Polyrhythmic Percussion Layer
+        if energy > 35:
+            for p_event in state.groove.get_amapiano_perc_pattern(bars, state.bpm):
+                self.drums.notes.append(pretty_midi.Note(
+                    velocity=p_event["velocity"],
+                    pitch=p_event["pitch"],
+                    start=state.cursor_sec + p_event["time"],
+                    end=state.cursor_sec + p_event["time"] + 0.05
+                ))
+
+        # 4. Arrangement transition fills
         if next_scene:
             last_bar_s = state.cursor_sec + (bars - 1) * 4 * state.sec_per_beat
             for f in state.arrangement.get_transition_fill(scene, next_scene, state.bpm):
-                self.drums.notes.append(pretty_midi.Note(f["velocity"], f["pitch"], last_bar_s + f["beat_offset"] * state.sec_per_beat, last_bar_s + f["beat_offset"] * state.sec_per_beat + 0.05))
+                self.drums.notes.append(pretty_midi.Note(
+                    velocity=f["velocity"],
+                    pitch=f["pitch"],
+                    start=last_bar_s + f["beat_offset"] * state.sec_per_beat,
+                    end=last_bar_s + f["beat_offset"] * state.sec_per_beat + 0.05
+                ))
+
 
 class VocalGuideAgent:
     """Creates a melodic guide for Call & Response sections."""
@@ -214,7 +271,16 @@ class LogDrumAgent:
 def generate_midi(blueprint: dict, outdir: Path, genome: dict = None):
     bpm = genome.get("bpm") if genome else blueprint.get("bpm", 124)
     swing = genome.get("swing") if genome else 0.56
-    state = AgentState(bpm, groove_config=blueprint.get("groove_config", {}))
+    
+    groove_cfg = dict(blueprint.get("groove_config", {}))
+    if genome:
+        if "shaker_style" in genome:
+            groove_cfg["shaker_style"] = genome["shaker_style"]
+        if "perc_syncopation_level" in genome:
+            groove_cfg["percussion_complexity"] = genome["perc_syncopation_level"]
+            
+    state = AgentState(bpm, groove_config=groove_cfg)
+
     
     p_inst = pretty_midi.Instrument(0, name="Piano")
     b_inst = pretty_midi.Instrument(38, name="Bass")
