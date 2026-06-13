@@ -2,6 +2,7 @@
 groove_engine.py
 ────────────────
 AI-Informed Specialist for micro-timing and rhythmic DNA.
+Accepts optional MasterKG for cross-stage intelligence sharing.
 """
 
 import random
@@ -9,14 +10,40 @@ import numpy as np
 from workflow_tracker import tracker
 
 class GrooveEngine:
-    def __init__(self, style="amapiano", config=None):
+    def __init__(self, style="amapiano", config=None, kg=None):
         self.style = style
-        self.config = config or {
+        self.kg = kg
+
+        # Base defaults
+        base_config = {
             "humanization_intensity": 0.5,
             "swing_style": "straight",
             "percussion_complexity": 0.5,
             "note_placement": "on_grid"
         }
+
+        # KG enrichment: genre-aware presets fill in any missing keys
+        if kg and kg.enabled:
+            kg_groove = kg.resolve_groove_config()
+            if kg_groove:
+                # KG presets are defaults; explicit config overrides them
+                merged = {**kg_groove, **(config or {})}
+                self.config = {**base_config, **merged}
+                tracker.log("GrooveEngine", "KG Config",
+                            f"Genre: {kg.read('genre')} → shaker: {self.config.get('shaker_style')} "
+                            f"| placement: {self.config.get('note_placement')}")
+            else:
+                self.config = {**base_config, **(config or {})}
+        else:
+            self.config = {**base_config, **(config or {})}
+
+        # Write chosen config back to KG so downstream stages can see it
+        if kg and kg.enabled:
+            kg.write("groove_shaker_style",   self.config.get("shaker_style"),   source="GrooveEngine")
+            kg.write("groove_note_placement",  self.config.get("note_placement"), source="GrooveEngine")
+            kg.write("groove_humanization",    self.config.get("humanization_intensity"), source="GrooveEngine")
+            kg.write("groove_perc_complexity", self.config.get("percussion_complexity"),  source="GrooveEngine")
+
         tracker.log("GrooveEngine", "Initialization", f"AI Personality: {self.config.get('note_placement', 'N/A')}")
 
     def apply_humanization(self, start_time, velocity, amount_scale=1.0):

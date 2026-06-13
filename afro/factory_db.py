@@ -16,6 +16,7 @@ def init_db():
         genome_json TEXT,
         composite_score REAL,
         user_preference INTEGER DEFAULT 0,
+        kg_state_json TEXT,
         timestamp DATETIME
     )''')
     # Table for Trial History
@@ -28,13 +29,13 @@ def init_db():
     conn.commit()
     conn.close()
 
-def save_beat(hex_id, title, bpm, swing, genome, score):
+def save_beat(hex_id, title, bpm, swing, genome, score, kg_state=None):
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    c.execute('''INSERT OR REPLACE INTO beats 
-                 (hex_id, title, bpm, swing, genome_json, composite_score, timestamp) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?)''',
-              (hex_id, title, bpm, swing, json.dumps(genome), score, datetime.now()))
+    c.execute('''INSERT OR REPLACE INTO beats
+                 (hex_id, title, bpm, swing, genome_json, composite_score, kg_state_json, timestamp)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+              (hex_id, title, bpm, swing, json.dumps(genome), score, json.dumps(kg_state) if kg_state else None, datetime.now()))
     conn.commit()
     conn.close()
 

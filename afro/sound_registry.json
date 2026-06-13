@@ -20,6 +20,68 @@
         "warm"
       ],
       "description": "Default Linux Soundfont"
+    },
+    {
+      "id": "local_basic_sample_pack_2026",
+      "path": "basic sample pack 2026.sf2",
+      "name": "Basic Sample Pack 2026",
+      "tags": [
+        "local",
+        "afro-house",
+        "amapiano",
+        "drums",
+        "percussion"
+      ],
+      "description": "Local sample pack with Afro-house and Amapiano drum and percussion sounds"
+    },
+    {
+      "id": "local_cajon",
+      "path": "Cajón.sf2",
+      "name": "Cajón",
+      "tags": [
+        "local",
+        "percussion",
+        "cajon",
+        "acoustic"
+      ],
+      "description": "Cajón percussion soundfont for organic rhythmic textures"
+    },
+    {
+      "id": "local_drums_by_minii",
+      "path": "Drums by Minii.sf2",
+      "name": "Drums by Minii",
+      "tags": [
+        "local",
+        "drums",
+        "amapiano",
+        "log-drum"
+      ],
+      "description": "Minii drum kit with Amapiano log-drum and percussion sounds"
+    },
+    {
+      "id": "local_home_alone_genesis",
+      "path": "Home Alone Genesis 1992 Drumkit.sf2",
+      "name": "Home Alone Genesis 1992 Drumkit",
+      "tags": [
+        "local",
+        "drums",
+        "vintage",
+        "afro-house"
+      ],
+      "description": "Vintage 1992 drumkit with warm character suitable for Afro-house"
+    },
+    {
+      "id": "local_vgs_industrial_drums",
+      "path": "VGS Industrial Drums.sf2",
+      "name": "VGS Industrial Drums",
+      "tags": [
+        "local",
+        "drums",
+        "industrial",
+        "hard",
+        "electronic"
+      ],
+      "description": "Industrial and electronic drum sounds for harder-edged Afro-house tracks"
     }
   ],
   "samples": []

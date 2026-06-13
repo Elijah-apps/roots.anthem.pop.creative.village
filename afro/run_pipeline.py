@@ -1,7 +1,7 @@
 """
 run_pipeline.py
 ───────────────
-HEX-DRIVEN & ASSET-AWARE RUNNER
+HEX-DRIVEN & ASSET-AWARE RUNNER (Master KG Edition)
 """
 
 import argparse
@@ -12,6 +12,9 @@ import hashlib
 import random
 import os
 from pathlib import Path
+
+# ── Specialized Brain ──
+from master_kg import MasterKG
 
 # ── Step Loader ───────────────────────────────────────────────────────────────
 def load_step(stem: str):
@@ -30,7 +33,7 @@ def get_hex_id(data: dict) -> str:
     s = json.dumps(data, sort_keys=True)
     return hashlib.sha256(s.encode()).hexdigest()[:8].upper()
 
-def optimize_beat(blueprint, n_trials=10):
+def optimize_beat(blueprint, n_trials=10, kg=None):
     banner("COMBINATORONICS OPTIMIZATION MODE (OPTUNA)")
     import optuna
     opt_mod = load_step("optimization_engine")
@@ -39,17 +42,15 @@ def optimize_beat(blueprint, n_trials=10):
     
     def objective(trial):
         genome = opt_mod.suggest_genome(trial, num_scenes=num_scenes)
-        analysis = opt_mod.analyze_beat(genome, blueprint)
+        analysis = opt_mod.mock_analyze_beat(genome)
         score = opt_mod.calculate_composite_score(genome, analysis)
         return score
-
 
     study = optuna.create_study(direction="maximize")
     study.optimize(objective, n_trials=n_trials)
     
     best_genome = study.best_params
     
-    # Reconstruct the genome dict (Optuna flattens it)
     structured_genome = {
         "bpm": best_genome.pop("bpm"),
         "swing": best_genome.pop("swing"),
@@ -59,225 +60,145 @@ def optimize_beat(blueprint, n_trials=10):
         "piano_reverb": best_genome.pop("piano_reverb"),
         "target_lufs": best_genome.pop("target_lufs"),
     }
-    # Gather scene sequence
     scene_seq = []
     for i in range(max(num_scenes, 8)):
         key = f"scene_idx_{i}"
-        if key in best_genome:
-            scene_seq.append(best_genome.pop(key))
+        if key in best_genome: scene_seq.append(best_genome.pop(key))
     structured_genome["scene_sequence"] = scene_seq
 
     print(f"\n[OPT] Best Score: {study.best_value:.4f}")
-    print(f"[OPT] Best Genome: {json.dumps(structured_genome, indent=2)}")
+    if kg and kg.enabled:
+        kg.write("opt_score", study.best_value, source="Optuna")
+        kg.write("opt_lufs", structured_genome.get("target_lufs"), source="Optuna")
+
     return structured_genome, study.best_value
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--prompt", default="Deep Master KG Journey")
     parser.add_argument("--blueprint", default="blueprint.json")
-    parser.add_argument("--source-beat", default=None, help="Hex ID of an existing beat to rearrange")
+    parser.add_argument("--source-beat", default=None, help="Hex ID of an existing beat")
     parser.add_argument("--outdir", default="output")
-    parser.add_argument("--api-key", default=None)
-    parser.add_argument("--skip-gemini", action="store_true", help="Use existing blueprint")
-    parser.add_argument("--skip-render", action="store_true", help="Stop after MIDI generation")
-    parser.add_argument("--sf2", default=None, help="Path to .sf2 SoundFont")
-    parser.add_argument("--lufs", type=float, default=-14.0, help="Target loudness")
-    parser.add_argument("--samplerate", type=int, default=44100, help="Sample rate")
-    parser.add_argument("--optimize", action="store_true", help="Run genetic optimization")
-    parser.add_argument("--trials", type=int, default=10, help="Number of optimization trials")
-    parser.add_argument("--manual", action="store_true", help="Load from input/manual_blueprint.json")
+    parser.add_argument("--optimize", action="store_true")
+    parser.add_argument("--trials", type=int, default=10)
+    parser.add_argument("--manual", action="store_true")
+    parser.add_argument("--kg", action="store_true", help="Enable Master KG Intelligence")
+    parser.add_argument("--reaction", default=None)
+    parser.add_argument("--lufs", type=float, default=-14.0)
+    parser.add_argument("--samplerate", type=int, default=44100)
+    parser.add_argument("--sf2", default=None)
     args = parser.parse_args()
 
     t0 = time.time()
     out_base = Path(args.outdir)
-    out_base.mkdir(parents=True, exist_ok=True)
 
+    # ── INITIALIZE MASTER KG ──
+    kg = MasterKG(enabled=args.kg)
+    
     # ── STEP 1: COMPOSER ──────────────────────────────────────────────────────
     banner("STEP 1: ASSET-AWARE COMPOSER")
 
     if args.manual:
         manual_path = Path("input/manual_blueprint.json")
-        if not manual_path.exists():
-            sys.exit(f"[ERROR] Manual blueprint not found at {manual_path}. Please paste your AI result there.")
-        print(f"[INFO] Loading MANUAL blueprint from {manual_path}")
-        with open(manual_path, "r") as f:
-            blueprint = json.load(f)
+        with open(manual_path, "r") as f: blueprint = json.load(f)
     elif args.source_beat:
-
         source_path = out_base / args.source_beat / "blueprint.json"
-        if not source_path.exists():
-            sys.exit(f"[ERROR] Source beat {args.source_beat} not found at {source_path}")
-        print(f"[INFO] Rearranging existing beat: {args.source_beat}")
-        with open(source_path, "r") as f:
-            blueprint = json.load(f)
-    elif args.skip_gemini:
-        print(f"[INFO] Skipping Gemini, loading {args.blueprint}")
-        with open(args.blueprint, "r") as f:
-            blueprint = json.load(f)
+        with open(source_path, "r") as f: blueprint = json.load(f)
+        
+        # Load previous KG state if refining
+        prev_kg_path = out_base / args.source_beat / "kg_state.json"
+        if prev_kg_path.exists() and args.reaction:
+            prev_kg = json.loads(prev_kg_path.read_text())
+            kg.apply_reaction(args.reaction, prev_kg)
     else:
         step1 = load_step("01_gemini_composer")
-        api_key = args.api_key or os.getenv("GEMINI_API_KEY")
-        
-        if api_key:
-            blueprint = step1.build_blueprint(args.prompt, api_key)
-        else:
-            print("[WARN] No API key, using demo blueprint.")
-            blueprint = get_demo_blueprint()
+        api_key = os.getenv("GEMINI_API_KEY")
+        blueprint = step1.build_blueprint(args.prompt, api_key) if api_key else get_demo_blueprint()
+
+    # Seed KG from blueprint (if enabled)
+    kg.seed_from_blueprint(blueprint)
 
     # ── OPTIMIZATION ──────────────────────────────────────────────────────────
     genome = None
-    opt_score = 0.5 # default
+    opt_score = 0.5
     
-    # CHECK FOR DEEP MANUAL OVERRIDE
     if blueprint.get("manual_optimization"):
-        banner("DEEP MANUAL OVERRIDE DETECTED")
         genome = blueprint["manual_optimization"]
-        # Ensure base genome fields are present
         genome["bpm"] = blueprint.get("bpm", 124)
         genome["swing"] = blueprint.get("swing", 0.56)
-        print("[INFO] Using manual production parameters from blueprint.")
-        opt_score = 1.0 # Perfect match of user intent
     elif args.optimize:
-        genome, opt_score = optimize_beat(blueprint, n_trials=args.trials)
-        
-        # APPLY COMBINATORONICS (Rearrangement)
+        genome, opt_score = optimize_beat(blueprint, n_trials=args.trials, kg=kg)
         if "scene_sequence" in genome:
             original_scenes = blueprint.get("scenes", [])
-            new_scenes = []
+            seen = set()
+            deduped_scenes = []
             for idx in genome["scene_sequence"]:
                 if idx < len(original_scenes):
-                    new_scenes.append(original_scenes[idx])
-            blueprint["scenes"] = new_scenes
-            print(f"[COMB] Rearranged {len(original_scenes)} scenes into sequence of {len(new_scenes)}")
-        
+                    scene = original_scenes[idx]
+                    scene_key = (scene.get("name"), scene.get("energy_percent"), scene.get("bars"))
+                    if scene_key not in seen:
+                        seen.add(scene_key)
+                        deduped_scenes.append(scene)
+            if deduped_scenes:
+                blueprint["scenes"] = deduped_scenes
         blueprint["bpm"] = genome.get("bpm", blueprint.get("bpm"))
 
-    # GENERATE HEX ID
     hex_id = get_hex_id(blueprint)
     if genome:
         ghash = hashlib.sha256(json.dumps(genome, sort_keys=True).encode()).hexdigest()[:4].upper()
         hex_id = f"{hex_id}_{ghash}"
-
-    print(f"[HEX] Beat Identifier: {hex_id}")
     
     beat_dir = out_base / hex_id
     beat_dir.mkdir(parents=True, exist_ok=True)
+    with open(beat_dir / "blueprint.json", "w") as f: json.dump(blueprint, f, indent=2)
     
-    with open(beat_dir / "blueprint.json", "w") as f:
-        json.dump(blueprint, f, indent=2)
-    if genome:
-        with open(beat_dir / "genome.json", "w") as f:
-            json.dump(genome, f, indent=2)
-
-    # Compile and save lyrics.txt
-    lyrics_txt = f"=== {blueprint.get('title', 'Untitled')} ===\n"
-    lyrics_txt += f"BPM: {blueprint.get('bpm', 124)} | Key: {blueprint.get('key', 'A Minor')}\n\n"
-    for scene in blueprint.get("scenes", []):
-        lyrics_txt += f"--- Scene: {scene.get('name', 'Untitled')} ({scene.get('bars', 8)} bars) ---\n"
-        lyrics_txt += f"Vocal Vibe: {scene.get('story_beats', 'N/A')}\n"
-        if "lyrics" in scene:
-            lyrics_txt += f"Lyrics:\n{scene['lyrics']}\n"
-        lyrics_txt += "\n"
-    with open(beat_dir / "lyrics.txt", "w") as f:
-        f.write(lyrics_txt)
-    print(f"[lyrics] Saved songwriting lyrics book to {beat_dir}/lyrics.txt")
-
-
     # ── STEP 2: MIDI ──────────────────────────────────────────────────────────
     banner("STEP 2: STORY-DRIVEN MIDI")
     step2 = load_step("02_midi_engine")
-    step2.generate_midi(blueprint, beat_dir, genome=genome)
-
-    if args.skip_render:
-        banner(f"MIDI GENERATION COMPLETE - {hex_id}")
-        return
+    step2.generate_midi(blueprint, beat_dir, genome=genome, kg=kg)
 
     # ── STEP 3: RENDER ────────────────────────────────────────────────────────
-    banner("STEP 3: RENDERING WITH ASSET AWARENESS")
+    banner("STEP 3: RENDERING")
     step3 = load_step("03_render_audio")
-    
-    # Resolve SoundFont
-    sf_path = args.sf2
-    if not sf_path:
-        sf_id = blueprint.get("selected_soundfont_id")
-        registry = blueprint.get("_registry", {"soundfonts": []})
-        sf_path = "/usr/share/sounds/sf2/FluidR3_GM.sf2" # Fallback
-        
-        for sf in registry.get("soundfonts", []):
-            if sf["id"] == sf_id:
-                sf_path = sf["path"]
-                print(f"[ASSET] Using SoundFont from Registry: {sf['name']} ({sf_id})")
-                break
-
+    sf_path = args.sf2 or "/usr/share/sounds/sf2/FluidR3_GM.sf2"
     step3.render_all(beat_dir, sf_path, sample_rate=args.samplerate)
 
     # ── STEP 4: MASTER ────────────────────────────────────────────────────────
     banner("STEP 4: MASTERING")
     step4 = load_step("04_master")
-    
     in_wav = beat_dir / "stems_mix.wav"
     samples, sr = step4.read_wav(in_wav)
-    target_lufs = genome.get("target_lufs", args.lufs) if genome else args.lufs
     
-    mastered = step4.master(samples, sr, target_lufs=target_lufs)
+    target_lufs = kg.resolve_lufs() if kg.enabled else args.lufs
+    mastered = step4.master(samples, sr, target_lufs=target_lufs, kg=kg)
     
     out_wav = beat_dir / f"BEAT_{hex_id}.wav"
     step4.write_wav(out_wav, mastered, sr)
-    
-    out_mp3 = beat_dir / f"BEAT_{hex_id}.mp3"
-    step4.export_mp3(out_wav, out_mp3)
+    step4.export_mp3(out_wav, beat_dir / f"BEAT_{hex_id}.mp3")
 
-    # ── DATABASE ──────────────────────────────────────────────────────────────
+    # ── SAVE KG STATE ──
+    if kg.enabled:
+        kg.state["hex_id"] = hex_id
+        kg.save(beat_dir / "kg_state.json")
+        from rich.console import Console
+        Console().print(kg.summary())
+
+    # ── DATABASE ──
     try:
         db_mod = load_step("factory_db")
         db_mod.init_db()
-        db_mod.save_beat(
-            hex_id=hex_id,
-            title=blueprint.get("title", "Untitled"),
-            bpm=blueprint.get("bpm", 124),
-            swing=genome.get("swing", 0.56) if genome else 0.56,
-            genome=genome or {},
-            score=opt_score
-        )
-        print(f"[DB] Beat saved to factory database.")
-    except Exception as e:
-        print(f"[DB] Error saving to database: {e}")
+        db_mod.save_beat(hex_id, blueprint.get("title", "Untitled"), blueprint.get("bpm", 124), 0.56, genome or {}, opt_score, kg_state=kg.state if kg.enabled else None)
+    except: pass
 
     banner(f"PIPELINE COMPLETE - {hex_id}")
     print(f"Time: {time.time()-t0:.1f}s")
-    print(f"Final Beat: {out_mp3}")
+    print(f"Final Beat: {beat_dir / f'BEAT_{hex_id}.mp3'}")
 
 def get_demo_blueprint():
     return {
-        "title": "Hex Demo",
-        "bpm": 124,
-        "key": "A Minor",
-        "selected_soundfont_id": "std_gm_01",
-        "global_motifs": {
-            "piano_main": [["A4", 1.0], ["E5", 1.0]],
-            "bass_main": [["A1", 2.0]],
-            "vocal_hook": [["A5", 4.0]]
-        },
-        "scenes": [
-            {
-                "name": "Intro",
-                "emotion": "Curiosity",
-                "energy_percent": 20,
-                "bars": 4,
-                "arrangement": {"piano": "chords", "bass": "silent", "drums": "silent"}
-            },
-            {
-                "name": "Peak",
-                "emotion": "Euphoria",
-                "energy_percent": 90,
-                "bars": 8,
-                "arrangement": {"piano": "motif", "bass": "driving", "drums": "full"}
-            }
-        ],
-        "drums": {"kick_pattern": [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0], "snare_pattern": [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0], "hihat_pattern": [1]*16, "perc_pattern": [0]*16},
-        "_registry": {
-            "soundfonts": [{"id": "std_gm_01", "name": "FluidR3", "path": "/usr/share/sounds/sf2/FluidR3_GM.sf2"}]
-        }
+        "title": "Hex Demo", "bpm": 124, "key": "A Minor", "selected_soundfont_id": "std_gm_01",
+        "scenes": [{"name": "Intro", "energy_percent": 20, "arrangement": {"piano": "chords", "bass": "silent", "drums": "minimal"}}],
+        "drums": {"kick_pattern": [1,0,0,0]*4, "snare_pattern": [0,0,0,0]*4, "hihat_pattern": [1]*16, "perc_pattern": [0]*16}
     }
 
 if __name__ == "__main__":

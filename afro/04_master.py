@@ -177,23 +177,52 @@ def loudness_normalize(audio: np.ndarray, target_lufs: float = -14.0,
 # ── Mastering chain ───────────────────────────────────────────────────────────
 
 def master(samples: np.ndarray, sr: int,
-           target_lufs: float = -14.0) -> np.ndarray:
+           target_lufs: float = -14.0, kg=None) -> np.ndarray:
     """
     Full mastering chain:
         HPF → Low shelf → High shelf → Compressor → Limiter → LUFS normalize
+
+    When a MasterKG is provided and enabled, all DSP parameters are resolved
+    from genre + emotion intelligence (Amapiano vs Afro-house presets,
+    Optuna-optimised LUFS, reaction-driven EQ deltas).
     """
+    # Resolve DSP parameters from KG or use safe defaults
+    if kg and kg.enabled:
+        dsp = kg.resolve_master_dsp()
+        target_lufs       = dsp.get("target_lufs",      target_lufs)
+        low_shelf_freq    = dsp.get("low_shelf_freq",   200.0)
+        low_shelf_gain    = dsp.get("low_shelf_gain",   1.5)
+        high_shelf_freq   = dsp.get("high_shelf_freq",  10000.0)
+        high_shelf_gain   = dsp.get("high_shelf_gain",  1.0)
+        comp_threshold_db = dsp.get("comp_threshold_db", -18.0)
+        comp_ratio        = dsp.get("comp_ratio",        3.0)
+        comp_attack_ms    = dsp.get("comp_attack_ms",    10.0)
+        comp_release_ms   = dsp.get("comp_release_ms",   100.0)
+        genre = kg.read("genre", "afro-house")
+        print(f"  [Master/KG] Genre: {genre} | LUFS: {target_lufs} | "
+              f"Low shelf: +{low_shelf_gain}dB | Comp ratio: {comp_ratio}:1")
+    else:
+        low_shelf_freq    = 200.0
+        low_shelf_gain    = 1.5
+        high_shelf_freq   = 10000.0
+        high_shelf_gain   = 1.0
+        comp_threshold_db = -18.0
+        comp_ratio        = 3.0
+        comp_attack_ms    = 10.0
+        comp_release_ms   = 100.0
+
     print("  [Master] High-pass filter  (30 Hz)...")
     s = highpass(samples, sr, cutoff_hz=30.0)
 
-    print("  [Master] Low shelf boost   (+1.5 dB @ 200 Hz)...")
-    s = low_shelf(s, sr, freq=200.0, gain_db=1.5)
+    print(f"  [Master] Low shelf boost   (+{low_shelf_gain} dB @ {int(low_shelf_freq)} Hz)...")
+    s = low_shelf(s, sr, freq=low_shelf_freq, gain_db=low_shelf_gain)
 
-    print("  [Master] High shelf boost  (+1.0 dB @ 10 kHz)...")
-    s = high_shelf(s, sr, freq=10_000.0, gain_db=1.0)
+    print(f"  [Master] High shelf boost  (+{high_shelf_gain} dB @ {int(high_shelf_freq)} Hz)...")
+    s = high_shelf(s, sr, freq=high_shelf_freq, gain_db=high_shelf_gain)
 
-    print("  [Master] Compressor        (-18 dB threshold, 3:1 ratio)...")
-    s = soft_compressor(s, threshold_db=-18.0, ratio=3.0,
-                        attack_ms=10.0, release_ms=100.0, sr=sr)
+    print(f"  [Master] Compressor        ({comp_threshold_db} dB threshold, {comp_ratio}:1 ratio)...")
+    s = soft_compressor(s, threshold_db=comp_threshold_db, ratio=comp_ratio,
+                        attack_ms=comp_attack_ms, release_ms=comp_release_ms, sr=sr)
 
     print(f"  [Master] Loudness normalize ({target_lufs} LUFS)...")
     s = loudness_normalize(s, target_lufs=target_lufs, sr=sr)
