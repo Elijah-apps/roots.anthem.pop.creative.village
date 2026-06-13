@@ -138,11 +138,14 @@ def get_wav_duration(path: Path) -> float:
 
 # ── Per-track gain map ────────────────────────────────────────────────────────
 TRACK_GAINS = {
-    "piano":    0.70,
-    "bass":     0.85,
-    "drums":    0.75,
-    "full_mix": 0.90,
+    "piano":       0.70,
+    "bass":        0.85,
+    "log_drum":    0.82,
+    "drums":       0.75,
+    "vocal_guide": 0.55,
+    "full_mix":    0.90,
 }
+
 
 
 def mix_wav_files(wav_paths: list[Path], output_path: Path,
@@ -167,8 +170,19 @@ def mix_wav_files(wav_paths: list[Path], output_path: Path,
         sample_rate = sr
         name  = p.stem
         gain  = track_gains.get(name, 0.80)
-        tracks.append((samples * gain, name))
+        
+        # Apply panning to spread the stereo field
+        track_samples = samples * gain
+        if name == "piano":
+            # Pan slightly left
+            track_samples = track_samples * np.array([1.12, 0.88])
+        elif name == "vocal_guide":
+            # Pan slightly right
+            track_samples = track_samples * np.array([0.88, 1.12])
+            
+        tracks.append((track_samples, name))
         max_len = max(max_len, len(samples))
+
 
     # pad & sum
     mix = np.zeros((max_len, 2), dtype=np.float32)

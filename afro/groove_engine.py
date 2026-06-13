@@ -58,10 +58,25 @@ class GrooveEngine:
     def apply_log_drum_dynamics(self, notes):
         intensity = self.config.get("humanization_intensity", 0.5)
         tracker.log("GrooveEngine", "Bass Refinement", f"Adding log-drum slides (Intensity: {intensity:.2f})")
+        import pretty_midi
         enhanced = []
         for n in notes:
-            if n.duration > 0.5 and random.random() < (0.3 * intensity):
+            duration = n.end - n.start
+            if duration > 0.5 and random.random() < (0.3 * intensity):
                 slide_pitch = n.pitch - 12
-                enhanced.append({"pitch": slide_pitch, "start": n.start - 0.05, "end": n.start, "velocity": int(n.velocity * 0.7)})
-            enhanced.append({"pitch": n.pitch, "start": n.start, "end": n.end, "velocity": n.velocity})
+                slide_start = max(0.0, n.start - 0.05)
+                # Create a slide note transitioning into the main note
+                enhanced.append(pretty_midi.Note(
+                    velocity=min(127, max(1, int(n.velocity * 0.7))),
+                    pitch=slide_pitch,
+                    start=slide_start,
+                    end=n.start
+                ))
+            enhanced.append(pretty_midi.Note(
+                velocity=n.velocity,
+                pitch=n.pitch,
+                start=n.start,
+                end=n.end
+            ))
         return enhanced
+

@@ -118,27 +118,36 @@ def soft_compressor(audio: np.ndarray,
                     sr: int = 44100) -> np.ndarray:
     """
     Simple RMS-based soft-knee compressor.
-    Operates sample-by-sample for realistic gain reduction.
+    Optimized with vectorized level tracking and gain application.
     """
     threshold = 10 ** (threshold_db / 20.0)
     attack    = np.exp(-1.0 / (sr * attack_ms  / 1000.0))
     release   = np.exp(-1.0 / (sr * release_ms / 1000.0))
 
-    output = np.copy(audio)
-    env    = 0.0
+    # Pre-calculate absolute max level per sample across all channels
+    levels = np.max(np.abs(audio), axis=1)
 
+    # Fast scalar loop in Python to compute the envelope
+    envs = np.zeros(len(audio))
+    curr_env = 0.0
     for i in range(len(audio)):
-        level = float(np.max(np.abs(audio[i])))
-        if level > env:
-            env = attack  * env + (1 - attack)  * level
+        level = levels[i]
+        if level > curr_env:
+            curr_env = attack * curr_env + (1.0 - attack) * level
         else:
-            env = release * env + (1 - release) * level
+            curr_env = release * curr_env + (1.0 - release) * level
+        envs[i] = curr_env
 
-        if env > threshold:
-            gain_reduction = threshold + (env - threshold) / ratio
-            output[i] = audio[i] * (gain_reduction / max(env, 1e-9))
+    # Vectorized gain application
+    gains = np.ones(len(audio))
+    mask = envs > threshold
+    if np.any(mask):
+        gains[mask] = (threshold + (envs[mask] - threshold) / ratio) / envs[mask]
 
+    # Apply gains
+    output = audio * gains[:, np.newaxis]
     return output
+
 
 
 def limiter(audio: np.ndarray, ceiling_db: float = -0.3) -> np.ndarray:

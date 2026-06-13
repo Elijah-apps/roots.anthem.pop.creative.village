@@ -39,9 +39,10 @@ def optimize_beat(blueprint, n_trials=10):
     
     def objective(trial):
         genome = opt_mod.suggest_genome(trial, num_scenes=num_scenes)
-        analysis = opt_mod.mock_analyze_beat(genome)
+        analysis = opt_mod.analyze_beat(genome, blueprint)
         score = opt_mod.calculate_composite_score(genome, analysis)
         return score
+
 
     study = optuna.create_study(direction="maximize")
     study.optimize(objective, n_trials=n_trials)
@@ -167,6 +168,20 @@ def main():
     if genome:
         with open(beat_dir / "genome.json", "w") as f:
             json.dump(genome, f, indent=2)
+
+    # Compile and save lyrics.txt
+    lyrics_txt = f"=== {blueprint.get('title', 'Untitled')} ===\n"
+    lyrics_txt += f"BPM: {blueprint.get('bpm', 124)} | Key: {blueprint.get('key', 'A Minor')}\n\n"
+    for scene in blueprint.get("scenes", []):
+        lyrics_txt += f"--- Scene: {scene.get('name', 'Untitled')} ({scene.get('bars', 8)} bars) ---\n"
+        lyrics_txt += f"Vocal Vibe: {scene.get('story_beats', 'N/A')}\n"
+        if "lyrics" in scene:
+            lyrics_txt += f"Lyrics:\n{scene['lyrics']}\n"
+        lyrics_txt += "\n"
+    with open(beat_dir / "lyrics.txt", "w") as f:
+        f.write(lyrics_txt)
+    print(f"[lyrics] Saved songwriting lyrics book to {beat_dir}/lyrics.txt")
+
 
     # ── STEP 2: MIDI ──────────────────────────────────────────────────────────
     banner("STEP 2: STORY-DRIVEN MIDI")

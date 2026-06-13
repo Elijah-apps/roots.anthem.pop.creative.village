@@ -159,6 +159,56 @@ class VocalGuideAgent:
                 self.inst.notes.append(pretty_midi.Note(64, pitch, t, t + dur * state.sec_per_beat))
                 t += (dur * state.sec_per_beat)
 
+class LogDrumAgent:
+    """Creates the signature syncopated Amapiano log drum track with rolls and slides."""
+    def __init__(self, instrument: pretty_midi.Instrument):
+        self.inst = instrument
+    def perform(self, scene: dict, global_motifs: dict, state: AgentState):
+        role = scene["arrangement"].get("bass", "silent")
+        if role == "silent": return
+        energy = scene["energy_percent"]
+        if energy < 35: return # Skip atmospheric intro/outro
+        
+        motif = global_motifs.get("bass_main", [])
+        start_time = state.cursor_sec
+        l_cursor = 0.0
+        
+        temp_notes = []
+        while l_cursor < (scene["bars"] * 4):
+            for note, dur in motif:
+                if l_cursor >= (scene["bars"] * 4): break
+                pitch = note_name_to_midi(note, 2) # Low register
+                
+                # Check for rapid tremolo rolls in high energy parts
+                if energy > 70 and random.random() > 0.7:
+                    # 4 quick 16th notes
+                    roll_vel = int(95 * state.arrangement.get_energy_multiplier(scene["name"], energy))
+                    for step in range(4):
+                        t = start_time + (l_cursor + step * 0.25) * state.sec_per_beat
+                        temp_notes.append(pretty_midi.Note(
+                            velocity=min(127, roll_vel),
+                            pitch=pitch,
+                            start=t,
+                            end=t + 0.18 * state.sec_per_beat
+                        ))
+                else:
+                    # Standard syncopated pulsing log drum
+                    t = start_time + l_cursor * state.sec_per_beat
+                    if random.random() > 0.5:
+                        t += 0.25 * state.sec_per_beat # Syncopated off-beat shift
+                    v = int((90 + int(energy * 0.25)) * state.arrangement.get_energy_multiplier(scene["name"], energy))
+                    temp_notes.append(pretty_midi.Note(
+                        velocity=min(127, v),
+                        pitch=pitch,
+                        start=t,
+                        end=t + (dur * 0.75) * state.sec_per_beat
+                    ))
+                l_cursor += dur
+                
+        # Refine with GrooveEngine slides and slides mutation
+        refined = state.groove.apply_log_drum_dynamics(temp_notes)
+        self.inst.notes.extend(refined)
+
 # ─── Orchestrator ───
 
 def generate_midi(blueprint: dict, outdir: Path, genome: dict = None):
@@ -168,12 +218,21 @@ def generate_midi(blueprint: dict, outdir: Path, genome: dict = None):
     
     p_inst = pretty_midi.Instrument(0, name="Piano")
     b_inst = pretty_midi.Instrument(38, name="Bass")
+    ld_inst = pretty_midi.Instrument(39, name="Log Drum") # Synth Bass 2
     d_inst = pretty_midi.Instrument(0, is_drum=True, name="Drums")
     s_inst = pretty_midi.Instrument(0, is_drum=True, name="Shaker")
     v_inst = pretty_midi.Instrument(53, name="Vocal Guide") # Voice Oohs
     
-    agents = [PianoAgent(p_inst), BassAgent(b_inst), DrumAgent(d_inst, s_inst), VocalGuideAgent(v_inst)]
+    agents = [
+        PianoAgent(p_inst), 
+        BassAgent(b_inst), 
+        LogDrumAgent(ld_inst), 
+        DrumAgent(d_inst, s_inst), 
+        VocalGuideAgent(v_inst)
+    ]
     scenes = blueprint.get("scenes", [])
+    
+    is_amapiano = bpm < 118
     
     for i, scene in enumerate(scenes):
         c_cursor = state.cursor_sec
@@ -185,22 +244,33 @@ def generate_midi(blueprint: dict, outdir: Path, genome: dict = None):
         
         state.cursor_sec = c_cursor
         agents[1].perform(scene, blueprint.get("global_motifs", {}), state)
-        agents[2].perform(scene, blueprint.get("drums", {}), state, swing, next_s)
-        agents[3].perform(scene, state)
+        if is_amapiano:
+            agents[2].perform(scene, blueprint.get("global_motifs", {}), state)
+        agents[3].perform(scene, blueprint.get("drums", {}), state, swing, next_s)
+        agents[4].perform(scene, state)
         
         state.cursor_sec = end_cursor
 
     outdir.mkdir(parents=True, exist_ok=True)
+    
     tracks = {
-        "piano.mid": [p_inst], "bass.mid": [b_inst], 
-        "drums.mid": [d_inst, s_inst], "vocal_guide.mid": [v_inst],
-        "full_mix.mid": [p_inst, b_inst, d_inst, s_inst, v_inst]
+        "piano.mid": [p_inst], 
+        "bass.mid": [b_inst], 
+        "drums.mid": [d_inst, s_inst], 
+        "vocal_guide.mid": [v_inst],
     }
+    if is_amapiano:
+        tracks["log_drum.mid"] = [ld_inst]
+        tracks["full_mix.mid"] = [p_inst, b_inst, ld_inst, d_inst, s_inst, v_inst]
+    else:
+        tracks["full_mix.mid"] = [p_inst, b_inst, d_inst, s_inst, v_inst]
+        
     for name, insts in tracks.items():
         pm = pretty_midi.PrettyMIDI(initial_tempo=bpm)
         pm.instruments.extend(insts)
         pm.write(str(outdir / name))
     return [outdir / k for k in tracks.keys()]
+
 
 def main():
     parser = argparse.ArgumentParser()

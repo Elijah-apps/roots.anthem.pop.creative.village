@@ -1,0 +1,27 @@
+=== Hex Demo ===
+BPM: 113 | Key: A Minor
+
+--- Scene: Peak (8 bars) ---
+Vocal Vibe: N/A
+
+--- Scene: Peak (8 bars) ---
+Vocal Vibe: N/A
+
+--- Scene: Intro (4 bars) ---
+Vocal Vibe: N/A
+
+--- Scene: Intro (4 bars) ---
+Vocal Vibe: N/A
+
+--- Scene: Peak (8 bars) ---
+Vocal Vibe: N/A
+
+--- Scene: Peak (8 bars) ---
+Vocal Vibe: N/A
+
+--- Scene: Peak (8 bars) ---
+Vocal Vibe: N/A
+
+--- Scene: Intro (4 bars) ---
+Vocal Vibe: N/A
+

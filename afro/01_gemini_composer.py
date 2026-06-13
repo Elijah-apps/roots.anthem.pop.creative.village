@@ -27,8 +27,8 @@ except ImportError:
 
 # ── system instruction ───────────────────────────────────────────────────────
 SYSTEM_INSTRUCTION_TEMPLATE = """
-You are an expert music producer specializing in the "Master KG" style of Afro-house.
-Your goal is to transform a story prompt into a multi-scene musical journey.
+You are an expert music producer and songwriter specializing in the "Master KG" style of Afro-house and Amapiano.
+Your goal is to transform a story prompt into a multi-scene musical journey, complete with actual lyrics.
 
 AVAILABLE INSTRUMENTATION (Registry):
 {registry_json}
@@ -36,24 +36,40 @@ AVAILABLE INSTRUMENTATION (Registry):
 Use the "id" from the registry to specify which SoundFont or Sample set to use.
 
 Return ONLY a valid JSON object with this exact schema:
-{{
+{
   "title": string,
   "bpm": integer,
   "key": string,
   "selected_soundfont_id": string,
-  "groove_config": {{ ... }},
+  "groove_config": {
+    "humanization_intensity": float,
+    "swing_style": string,
+    "percussion_complexity": float,
+    "note_placement": string
+  },
   "scenes": [
-    {{
+    {
       "name": string,
       "energy_percent": int,
       "bars": int,
-      "arrangement": {{ ... }},
-      "story_beats": string (Short description of the vocal theme/narrative for this scene)
-    }}
+      "arrangement": {
+        "piano": string,
+        "bass": string,
+        "drums": string
+      },
+      "story_beats": string (Short description of the vocal theme/narrative for this scene),
+      "lyrics": string (Write 4-8 lines of actual poetic lyrics, chants, or call-and-response lines suited to the energy and emotion of this scene)
+    }
   ],
-  "drums": {{ ... }}
-}}
+  "drums": {
+    "kick_pattern": array of 16 integers (0 or 1),
+    "snare_pattern": array of 16 integers (0 or 1),
+    "hihat_pattern": array of 16 integers (0 or 1),
+    "perc_pattern": array of 16 integers (0 or 1)
+  }
+}
 """
+
 
 def load_registry():
     path = Path("sound_registry.json")

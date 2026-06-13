@@ -1,5 +1,7 @@
 import optuna
 import random
+import numpy as np
+
 
 def suggest_genome(trial: optuna.Trial, num_scenes: int = 0):
     """
@@ -33,30 +35,105 @@ def suggest_genome(trial: optuna.Trial, num_scenes: int = 0):
 
 def calculate_composite_score(genome: dict, analysis_results: dict):
     """
-    Scores the beat. Structural variety and 'flow' are prioritized.
+    Scores the beat by combining groove cohesion, arrangement flow, scene variety, and mix cohesion.
     """
-    # Structural score: penalize too many repeats of the same scene in a row
-    seq = genome.get("scene_sequence", [])
-    variety = len(set(seq)) / len(seq) if seq else 1.0
-    
-    flow_penalty = 0
-    for i in range(len(seq) - 1):
-        if seq[i] == seq[i+1]:
-            flow_penalty += 0.05 # Deduct for stagnation
-            
-    groove = (genome["swing"] - 0.5) * 2.0
+    w_groove = 0.35
+    w_flow = 0.35
+    w_variety = 0.15
+    w_mix = 0.15
     
     score = (
-        0.2 * variety +
-        0.3 * groove +
-        0.5 * analysis_results.get("harmonic_clarity", 0.8)
-        - flow_penalty
+        w_groove * analysis_results.get("groove_cohesion", 1.0) +
+        w_flow * analysis_results.get("flow_score", 1.0) +
+        w_variety * analysis_results.get("variety_score", 1.0) +
+        w_mix * analysis_results.get("mix_cohesion", 1.0)
     )
-    return max(0, min(1.0, score))
+    return max(0.0, min(1.0, score))
+
+def analyze_beat(genome: dict, blueprint: dict) -> dict:
+    """
+    Performs real rule-based analysis of the proposed genome and blueprint structure.
+    """
+    bpm = genome.get("bpm", 120)
+    swing = genome.get("swing", 0.56)
+    
+    # 1. Groove Cohesion (BPM vs Swing)
+    # Amapiano (< 118 BPM) favors heavier swing (~0.60)
+    # Afro-house (>= 118 BPM) favors straighter groove (~0.53)
+    groove_cohesion = 1.0
+    if bpm < 118:
+        ideal_swing = 0.60
+        dist = abs(swing - ideal_swing)
+        groove_cohesion -= min(1.0, dist * 6.0)
+    else:
+        ideal_swing = 0.53
+        dist = abs(swing - ideal_swing)
+        groove_cohesion -= min(1.0, dist * 8.0)
+        
+    # 2. Arrangement Flow (Energy curve evaluation)
+    scenes = blueprint.get("scenes", [])
+    seq = genome.get("scene_sequence", [])
+    
+    flow_score = 0.8
+    variety_score = 1.0
+    
+    if scenes and seq:
+        energies = []
+        for idx in seq:
+            if idx < len(scenes):
+                energies.append(scenes[idx].get("energy_percent", 50))
+            else:
+                energies.append(50)
+                
+        # Variety: how many unique scenes are utilized
+        unique_scenes_used = len(set(seq))
+        variety_score = min(1.0, unique_scenes_used / max(1, len(scenes)))
+        
+        # Penalize starting with immediate peak energy (> 70%)
+        if energies[0] > 70:
+            flow_score -= 0.15
+            
+        # Reward having a high energy climax/peak scene (> 80%)
+        has_climax = any(e > 80 for e in energies)
+        if not has_climax:
+            flow_score -= 0.20
+            
+        # Penalize excessive consecutive repeats of the same scene
+        consecutive_repeats = 0
+        for i in range(len(seq) - 1):
+            if seq[i] == seq[i+1]:
+                consecutive_repeats += 1
+        if consecutive_repeats > 2:
+            flow_score -= min(0.3, consecutive_repeats * 0.05)
+            
+        # Evaluate standard deviation of energy levels
+        energy_std = float(np.std(energies))
+        if energy_std < 10.0:
+            flow_score -= 0.15 # Too flat/uninteresting
+        elif energy_std > 40.0:
+            flow_score -= 0.1 # Too chaotic/random
+            
+    # 3. Frequency & Mix Cohesion
+    # Avoid muddy lower-mids (combination of high bass cutoff and high piano reverb)
+    mix_cohesion = 1.0
+    bass_cutoff = genome.get("bass_cutoff", 200)
+    piano_reverb = genome.get("piano_reverb", 0.3)
+    if bass_cutoff > 300 and piano_reverb > 0.5:
+        mix_cohesion -= 0.15
+        
+    return {
+        "groove_cohesion": max(0.0, groove_cohesion),
+        "flow_score": max(0.0, flow_score),
+        "variety_score": variety_score,
+        "mix_cohesion": mix_cohesion
+    }
 
 def mock_analyze_beat(genome):
-    """Simulates the analysis of the generated arrangement."""
+    """Backward compatibility fallback."""
     return {
-        "harmonic_clarity": random.uniform(0.75, 0.98),
-        "energy_flow": random.uniform(0.6, 0.9)
+        "groove_cohesion": 0.8,
+        "flow_score": 0.8,
+        "variety_score": 0.8,
+        "mix_cohesion": 0.8
     }
+
