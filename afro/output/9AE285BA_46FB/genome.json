@@ -1,0 +1,13 @@
+{
+  "bpm": 122,
+  "swing": 0.5493808133852156,
+  "intro_bars": 8,
+  "peak_bars": 32,
+  "mutation_rate": 0.10789494830454628,
+  "kick_density": 0.9042306879846578,
+  "perc_density": 0.4018282993892771,
+  "kick_fundamental": 53,
+  "bass_cutoff": 157,
+  "piano_reverb": 0.5667575790671366,
+  "target_lufs": -12.677551625418511
+}

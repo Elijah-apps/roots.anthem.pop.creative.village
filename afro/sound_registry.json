@@ -1,0 +1,26 @@
+{
+  "soundfonts": [
+    {
+      "id": "std_gm_01",
+      "path": "/usr/share/sounds/sf2/FluidR3_GM.sf2",
+      "name": "FluidR3 General MIDI",
+      "tags": [
+        "standard",
+        "versatile",
+        "gm"
+      ],
+      "description": "Standard high-quality GM soundfont"
+    },
+    {
+      "id": "soundfonts_af289497",
+      "path": "/usr/share/sounds/sf2/FluidR3_GM.sf2",
+      "name": "FluidR3_GM",
+      "tags": [
+        "gm",
+        "warm"
+      ],
+      "description": "Default Linux Soundfont"
+    }
+  ],
+  "samples": []
+}

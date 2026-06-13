@@ -1,0 +1,24 @@
+{
+  "bpm": 112,
+  "key": "A Minor",
+  "chords": [
+    ["Am7", 4],
+    ["Fmaj7", 4],
+    ["Cmaj7", 4],
+    ["G", 4]
+  ],
+  "bassline": [
+    ["A1",1],
+    ["A1",1],
+    ["E2",1],
+    ["G2",1]
+  ],
+  "structure": [
+    "intro",
+    "verse",
+    "drop",
+    "breakdown",
+    "drop",
+    "outro"
+  ]
+}

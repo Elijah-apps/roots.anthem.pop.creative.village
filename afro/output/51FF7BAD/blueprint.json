@@ -1,0 +1,137 @@
+{
+  "title": "Hex Demo",
+  "bpm": 124,
+  "key": "A Minor",
+  "selected_soundfont_id": "std_gm_01",
+  "global_motifs": {
+    "piano_main": [
+      [
+        "A4",
+        1.0
+      ],
+      [
+        "E5",
+        1.0
+      ]
+    ],
+    "bass_main": [
+      [
+        "A1",
+        2.0
+      ]
+    ],
+    "vocal_hook": [
+      [
+        "A5",
+        4.0
+      ]
+    ]
+  },
+  "scenes": [
+    {
+      "name": "Intro",
+      "emotion": "Curiosity",
+      "energy_percent": 20,
+      "bars": 4,
+      "arrangement": {
+        "piano": "chords",
+        "bass": "silent",
+        "drums": "silent"
+      }
+    },
+    {
+      "name": "Peak",
+      "emotion": "Euphoria",
+      "energy_percent": 90,
+      "bars": 8,
+      "arrangement": {
+        "piano": "motif",
+        "bass": "driving",
+        "drums": "full"
+      }
+    }
+  ],
+  "drums": {
+    "kick_pattern": [
+      1,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0
+    ],
+    "snare_pattern": [
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0
+    ],
+    "hihat_pattern": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "perc_pattern": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "_registry": {
+    "soundfonts": [
+      {
+        "id": "std_gm_01",
+        "name": "FluidR3",
+        "path": "/usr/share/sounds/sf2/FluidR3_GM.sf2"
+      }
+    ]
+  }
+}

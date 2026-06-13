@@ -1,0 +1,193 @@
+{
+  "title": "Jerusalema Dreams",
+  "bpm": 124,
+  "key": "A Minor",
+  "time_signature": [
+    4,
+    4
+  ],
+  "global_motifs": {
+    "piano_main": [
+      [
+        "A4",
+        1.0
+      ],
+      [
+        "C5",
+        1.0
+      ],
+      [
+        "E5",
+        0.5
+      ],
+      [
+        "A4",
+        1.5
+      ]
+    ],
+    "bass_main": [
+      [
+        "A1",
+        1.0
+      ],
+      [
+        "A1",
+        1.0
+      ],
+      [
+        "E2",
+        1.0
+      ],
+      [
+        "G2",
+        1.0
+      ]
+    ],
+    "vocal_hook": [
+      [
+        "E5",
+        2.0
+      ],
+      [
+        "D5",
+        1.0
+      ],
+      [
+        "C5",
+        1.0
+      ]
+    ]
+  },
+  "scenes": [
+    {
+      "name": "Atmosphere",
+      "emotion": "Curiosity",
+      "energy_percent": 15,
+      "bars": 8,
+      "arrangement": {
+        "piano": "chords",
+        "bass": "silent",
+        "drums": "silent"
+      }
+    },
+    {
+      "name": "Identity",
+      "emotion": "Hope",
+      "energy_percent": 35,
+      "bars": 8,
+      "arrangement": {
+        "piano": "motif_variation",
+        "bass": "silent",
+        "drums": "kick_only"
+      }
+    },
+    {
+      "name": "Movement",
+      "emotion": "Anticipation",
+      "energy_percent": 55,
+      "bars": 16,
+      "arrangement": {
+        "piano": "motif_variation",
+        "bass": "driving",
+        "drums": "full_groove"
+      }
+    },
+    {
+      "name": "Peak",
+      "emotion": "Euphoria",
+      "energy_percent": 95,
+      "bars": 16,
+      "arrangement": {
+        "piano": "motif_variation",
+        "bass": "driving",
+        "drums": "full_groove"
+      }
+    },
+    {
+      "name": "Reflection",
+      "emotion": "Satisfaction",
+      "energy_percent": 30,
+      "bars": 8,
+      "arrangement": {
+        "piano": "chords",
+        "bass": "silent",
+        "drums": "kick_only"
+      }
+    }
+  ],
+  "drums": {
+    "kick_pattern": [
+      1,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0
+    ],
+    "snare_pattern": [
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0
+    ],
+    "hihat_pattern": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "perc_pattern": [
+      0,
+      1,
+      0,
+      1,
+      0,
+      1,
+      0,
+      1,
+      0,
+      1,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0
+    ],
+    "swing": 56
+  }
+}
