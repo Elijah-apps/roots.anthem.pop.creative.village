@@ -100,14 +100,15 @@ def show_story_guide(blueprint):
 def produce_new_beat():
     """Guides user through producing a new beat."""
     console.print(Panel("[bold green]NEW PRODUCTION REQUEST[/bold green]"))
-    prompt = Prompt.ask("Describe the vibe (e.g., 'Soulful Amapiano with deep logs')")
-    optimize = Confirm.ask("Run genetic optimization (slow but better quality)?")
-    trials = 0
-    if optimize:
-        trials = IntPrompt.ask("Number of optimization trials", default=10)
+    prompt = Prompt.ask("Describe the vibe")
+    
+    console.print("\n[1] ⚡ [bold]Direct Production[/bold] (Fast, use AI's first draft)")
+    console.print("[2] 🧬 [bold]Genetic Search[/bold] (Slower, runs trials to find best groove)")
+    mode = Prompt.ask("Select mode", choices=["1", "2"], default="1")
     
     cmd = [sys.executable, "run_pipeline.py", "--prompt", prompt]
-    if optimize:
+    if mode == "2":
+        trials = IntPrompt.ask("Number of optimization trials", default=10)
         cmd += ["--optimize", "--trials", str(trials)]
     
     hex_id = run_with_progress(cmd, "Generating new story and groove...")
@@ -195,9 +196,10 @@ def main_menu():
         console.print("[2] 🧬 Optimize Existing Beat (Combinatoronics)")
         console.print("[3] 📜 View Factory History")
         console.print("[4] 📝 Manual AI Entry (API Fallback)")
+        console.print("[5] 🔄 React & Refine (Contextual Edit)")
         console.print("[q] 🚪 Exit")
         
-        choice = Prompt.ask("\nSelect action", choices=["1", "2", "3", "4", "q"])
+        choice = Prompt.ask("\nSelect action", choices=["1", "2", "3", "4", "5", "q"])
         
         if choice == "1":
             produce_new_beat()
@@ -212,35 +214,99 @@ def main_menu():
             Prompt.ask("\nPress Enter to return to menu")
         elif choice == "4":
             manual_ai_entry()
+        elif choice == "5":
+            react_and_refine()
         elif choice == "q":
             break
+
+def react_and_refine():
+    clear_screen()
+    show_banner()
+    rows = list_history()
+    if not rows:
+        Prompt.ask("\nPress Enter to return to menu")
+        return
+    
+    target_hex = Prompt.ask("Enter Hex ID to refine")
+    reaction = Prompt.ask("What is your reaction? (e.g., 'Bass is too loud', 'Make it more soulful')")
+    
+    # Load original context
+    bp_path = Path("output") / target_hex / "blueprint.json"
+    if not bp_path.exists():
+        console.print("[red]Original blueprint not found![/red]")
+        return
+    
+    original_json = bp_path.read_text()
+    
+    console.print(Panel("[bold yellow]REFINEMENT WORKFLOW[/bold yellow]"))
+    console.print(f"1. Copy [bold cyan]MASTER_PROMPT.md[/bold cyan].")
+    console.print(f"2. Use [bold green]REFINEMENT MODE[/bold green] in your Browser AI.")
+    console.print(f"3. Paste your feedback: [italic white]\"{reaction}\"[/italic white]")
+    console.print(f"4. Paste this original JSON when asked:")
+    console.print(f"[dim]{original_json[:200]}...[/dim]")
+    
+    ready = Confirm.ask("\nHave you saved the refined JSON to input/manual_blueprint.json?")
+    if ready:
+        cmd = [sys.executable, "run_pipeline.py", "--manual"]
+        hex_id = run_with_progress(cmd, "Applying AI refinement...")
+        if hex_id:
+            console.print(f"[green]Refinement complete! New Hex: {hex_id}[/green]")
+            tracker.log("ArrangementEngine", "Refinement", f"Applied reaction: {reaction}")
+    Prompt.ask("\nPress Enter to return to menu")
 
 def manual_ai_entry():
     clear_screen()
     show_banner()
-    console.print(Panel("[bold yellow]MANUAL AI FALLBACK MODE[/bold yellow]"))
-    console.print("1. Open [bold cyan]MASTER_PROMPT.md[/bold cyan] and copy its content.")
+    console.print(Panel("[bold yellow]MANUAL AI FALLBACK MODE (Asset-Aware)[/bold yellow]"))
+    
+    # AUTO-SYNC REGISTRY INTO PROMPT
+    try:
+        with open("sound_registry.json", "r") as f:
+            registry = json.load(f)
+        clean_registry = {
+            "soundfonts": [{"id": s["id"], "name": s["name"], "tags": s.get("tags", []), "desc": s.get("description", "")} for s in registry.get("soundfonts", [])]
+        }
+        prompt_path = Path("MASTER_PROMPT.md")
+        content = prompt_path.read_text()
+        import re
+        pattern = r"## 🎹 LOCAL ASSET REGISTRY.*?(?=## 📐 OUTPUT SCHEMA)"
+        replacement = f"## 🎹 LOCAL ASSET REGISTRY (Use these IDs!)\n{json.dumps(clean_registry, indent=2)}\n\n"
+        new_content = re.sub(pattern, replacement, content, flags=re.DOTALL)
+        prompt_path.write_text(new_content)
+        console.print("[green]✅ Local Asset Registry synced to MASTER_PROMPT.md[/green]")
+    except Exception as e:
+        console.print(f"[red]Could not sync registry: {e}[/red]")
+
+    console.print("\n1. Open [bold cyan]MASTER_PROMPT.md[/bold cyan] and copy its content.")
     console.print("2. Paste it into ChatGPT, Claude, or any browser AI.")
     console.print("3. Copy the [bold green]JSON[/bold green] output from the AI.")
     console.print("4. Paste that JSON into [bold cyan]input/manual_blueprint.json[/bold cyan].")
     
     ready = Confirm.ask("\nHave you saved the JSON to input/manual_blueprint.json?")
     if ready:
-        optimize = Confirm.ask("Run genetic optimization on this manual blueprint?")
-        trials = 0
-        if optimize:
-            trials = IntPrompt.ask("Number of optimization trials", default=10)
-        
-        cmd = [sys.executable, "run_pipeline.py", "--manual"]
-        if optimize:
-            cmd += ["--optimize", "--trials", str(trials)]
+        manual_path = Path("input/manual_blueprint.json")
+        try:
+            with open(manual_path, "r") as f:
+                data = json.load(f)
             
-        hex_id = run_with_progress(cmd, "Processing manual AI blueprint...")
-        if hex_id:
-            bp_path = Path("output") / hex_id / "blueprint.json"
-            if bp_path.exists():
-                show_story_guide(json.loads(bp_path.read_text()))
-        Prompt.ask("\nPress Enter to return to menu")
+            if "manual_optimization" in data:
+                console.print("[bold green]✨ Deep Manual Override detected! Skipping internal search.[/bold green]")
+                cmd = [sys.executable, "run_pipeline.py", "--manual"]
+            else:
+                console.print("\n[1] ⚡ [bold]Direct Production[/bold]")
+                console.print("[2] 🧬 [bold]Genetic Search[/bold]")
+                mode = Prompt.ask("Select mode", choices=["1", "2"], default="1")
+                cmd = [sys.executable, "run_pipeline.py", "--manual"]
+                if mode == "2":
+                    trials = IntPrompt.ask("Optimization trials", default=10)
+                    cmd += ["--optimize", "--trials", str(trials)]
+            
+            hex_id = run_with_progress(cmd, "Processing manual AI blueprint...")
+            if hex_id:
+                show_story_guide(data)
+        except Exception as e:
+            console.print(f"[red]Error reading manual blueprint: {e}[/red]")
+    Prompt.ask("\nPress Enter to return to menu")
 
 if __name__ == "__main__":
     if not Path("beat_factory.db").exists():
